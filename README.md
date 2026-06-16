@@ -4,7 +4,7 @@ Repository pour la création d'un pipeline de déploiement Azure avec check de s
 ```
 ├── .github/
 │   └── workflows/
-│       └── deploy.yml          # Ton pipeline GitHub Actions
+│       └── terraform.yml          # Ton pipeline GitHub Actions
 ├── src/
 │   └── main.tf                 # Ton code IaC (Terraform)
 │   └── variables.tf
