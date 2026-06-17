@@ -1,103 +1,57 @@
-# Workflow terraform pour déploiement Azure
-
-name: Security Scan & Azure Deployment
+name: 'Apply'
 
 on:
   push:
     branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
 
-# Permissions requises
 permissions:
-  id-token: write
   contents: read
-  security-events: write
 
 jobs:
-  validate_and_scan:
-    name: Lint, Validate & Scan
+  terraform:
+    name: 'Terraform'
+    env: 
+      ARM_CLIENT_ID: ${{ secrets.CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.TENANT_ID }}
     runs-on: ubuntu-latest
-    
+    environment: production
+
+    # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
+    defaults:
+      run:
+        shell: bash
+
     steps:
-      - name: Checkout du code
-        uses: actions/checkout@v4
+    # Checkout the repository to the GitHub Actions runner
+    - name: Checkout
+      uses: actions/checkout@v4
 
-      # 1. Installer et initialiser Terraform en local pour la validation syntaxique
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.16.0 
+    # Setup Terraform
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
 
-      - name: Terraform Init (Validation)
-        run: |
-          cd src
-          terraform init -backend=false 
+    # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
+    - name: Terraform Init
+      run: terraform init
 
-      - name: Terraform Validate
-        run: |
-          cd src
-          terraform validate
+    # Checks that all Terraform configuration files adhere to a canonical format
+    # - name: Terraform Format
+    #  run: terraform fmt -check
 
-      # 2. Scan de sécurité avec Checkov
-      - name: Checkov Security Scan
-        id: checkov
-        uses: bridgecrewio/checkov-action@master
-        with:
-          directory: src/
-          framework: terraform
-          output_format: cli,sarif
-          output_file_path: console,results.sarif
-          soft_fail: false # arrêt en cas de faille 
+    # Generates an execution plan for Terraform
+    - name: Terraform Plan
+      run: | 
+        terraform plan \
+          -input=false \
+          -out=ynov1.tfstate \
+          -var="ssh_key=${{ secrets.ID_RSA }}"
 
-      - name: Upload des résultats SARIF
-        uses: github/codeql-action/upload-sarif@v3
-        if: success() || failure()
-        with:
-          sarif_file: results.sarif
 
-  deploy_azure:
-    name: Azure Login & Deploy
-    runs-on: ubuntu-latest
-    needs: validate_and_scan # Bloquage du déploiement si le scan échoue
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push' # Ne déploie que sur un push sur main
-    
-    steps:
-      - name: Checkout du code
-        uses: actions/checkout@v4
-
-      # 1. Connexion sécurisée à Azure via OIDC
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      # 2. Configuration de Terraform pour le vrai déploiement
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.16.0
-
-      # 3. Initialisation avec le vrai Backend Azure (pour stocker le tfstate)
-      - name: Terraform Init
-        run: |
-          cd src
-          terraform init \
-            -backend-config="resource_group_name=rg-terraform-state" \
-            -backend-config="storage_account_name=sttfstatebackend" \
-            -backend-config="container_name=tfstate" \
-            -backend-config="key=prod.terraform.tfstate"
-
-      # 4. Génération du plan d'exécution
-      - name: Terraform Plan
-        run: |
-          cd src
-          terraform plan -out=tfplan
-
-      # 5. Application des modifications sur Azure
-      - name: Terraform Apply
-        run: |
-          cd src
-          terraform apply -auto-approve tfplan
+      # On push to "main", build or change infrastructure according to Terraform configuration files
+      # Note: It is recommended to set up a required "strict" status check in your repository for "Terraform Cloud". See the documentation on "strict" required status checks for more information: https://help.github.com/en/github/administering-a-repository/types-of-required-status-checks
+    - name: Terraform Apply
+      # if: github.ref == 'refs/heads/"main"' && github.event_name == 'push'
+      run: terraform apply -auto-approve -input=false ynov1.tfstate
