@@ -38,23 +38,30 @@ jobs:
       run: terraform init
       working-directory: ./src
 
+    # == AJOUT DE CHECKOV ==
+    # Lance l'analyse de sécurité dans le dossier src/. S'il y a des erreurs, le pipeline s'arrête ici.
+    - name: Run Checkov Security Scan
+      uses: bridgecrewio/checkov-action@master
+      with:
+        directory: ./src
+        framework: terraform
+        # soft_fail: false # Optionnel, car c'est 'false' par défaut (bloque le pipeline en cas d'erreur)
+
     # Checks that all Terraform configuration files adhere to a canonical format
     # - name: Terraform Format
-    #  run: terraform fmt -check
+    #   run: terraform fmt -check
 
     # Generates an execution plan for Terraform
     - name: Terraform Plan
       run: | 
         terraform plan \
           -input=false \
-          -out=ynov1.tfstate \
+          -out=ynov1.tfplan \
           -var="ssh_key=${{ secrets.ID_RSA }}"
       working-directory: ./src
 
-
-      # On push to "main", build or change infrastructure according to Terraform configuration files
-      # Note: It is recommended to set up a required "strict" status check in your repository for "Terraform Cloud". See the documentation on "strict" required status checks for more information: https://help.github.com/en/github/administering-a-repository/types-of-required-status-checks
+    # On push to "main", build or change infrastructure according to Terraform configuration files
     - name: Terraform Apply
       # if: github.ref == 'refs/heads/"main"' && github.event_name == 'push'
-      run: terraform apply -auto-approve -input=false ynov1.tfstate
+      run: terraform apply -auto-approve -input=false ynov1.tfplan
       working-directory: ./src
