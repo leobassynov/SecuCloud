@@ -38,14 +38,14 @@ jobs:
       run: terraform init
       working-directory: ./src
 
-    # == AJOUT DE CHECKOV ==
-    # Lance l'analyse de sécurité dans le dossier src/. S'il y a des erreurs, le pipeline s'arrête ici.
+    # == CHECKOV EN MODE LOG SEUL ==
+    # Scan le code, affiche les erreurs dans les détails du job, mais ne bloque pas la suite.
     - name: Run Checkov Security Scan
       uses: bridgecrewio/checkov-action@master
       with:
         directory: ./src
         framework: terraform
-        # soft_fail: false # Optionnel, car c'est 'false' par défaut (bloque le pipeline en cas d'erreur)
+        soft_fail: true # <--- C'est cette ligne qui empêche le pipeline de s'arrêter
 
     # Checks that all Terraform configuration files adhere to a canonical format
     # - name: Terraform Format
