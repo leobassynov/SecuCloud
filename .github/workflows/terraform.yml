@@ -48,6 +48,7 @@ jobs:
           -input=false \
           -out=ynov1.tfstate \
           -var="ssh_key=${{ secrets.ID_RSA }}"
+      working-directory: ./src
 
 
       # On push to "main", build or change infrastructure according to Terraform configuration files
